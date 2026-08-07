@@ -1,69 +1,62 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Home() {
+  const { user, loginWithGoogle, logout, loading } = useAuth();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <main className="relative min-h-screen w-full text-white font-['var(--font-montserrat)'] flex flex-col bg-transparent">
+
+      {/* Hero Content Area */}
+      <div className="relative z-10 flex-1 w-full flex flex-col items-center pt-[18vh] px-6">
+        
+        {/* Typographic Hero */}
+        <div className="flex flex-col items-center w-full max-w-[1200px] mt-4 md:mt-12">
+          <h1 
+            className="flex justify-between w-full text-[22vw] md:text-[260px] font-bold leading-[0.8] text-[#1c3021] font-['VictoryStriker'] uppercase"
+            style={{ 
+              textShadow: "4px 4px 10px rgba(0,0,0,0.15), 1px 1px 2px rgba(255,255,255,0.2)",
+              transform: "scaleY(1.15)", 
+              transformOrigin: "bottom"
+            }}
+          >
+            {"PERFECTION".split("").map((char, index) => (
+              <span key={index}>{char}</span>
+            ))}
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          
+          <div className="w-full relative h-16 md:h-20 mt-4">
+            <h2 className="absolute right-[5%] md:right-[2%] top-0 text-3xl md:text-5xl font-light tracking-[0.2em] text-[#ccb999]">
+              IS A COMPUTATION
+            </h2>
+          </div>
+        </div>
+
+        {/* Brief Intro */}
+        <div className="mt-auto mb-10 w-full max-w-3xl flex flex-col items-center text-center px-4">
+          <p className="text-white/80 font-light text-lg md:text-xl leading-relaxed tracking-wide">
+            A context-aware diagnostic engine that goes beyond basic scanners. We deeply map your architecture, bypass enterprise security walls, and generate exact, copy-pasteable code patches to engineer a flawless digital experience.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Action Buttons */}
+        <div className="mb-[15vh] w-full max-w-[700px] flex flex-col sm:flex-row items-center justify-center gap-6">
+          <Link 
+            href="/about"
+            className="w-full sm:w-auto text-center bg-transparent border border-white/20 hover:border-white/50 hover:bg-white/5 text-white/90 px-8 py-4 rounded-full font-light tracking-widest transition-all text-sm uppercase"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Want to know us?
+          </Link>
+          <Link 
+            href="/new-audit"
+            className="w-full sm:w-auto text-center bg-[#ccb999] hover:bg-[#e0cba8] text-black px-8 py-4 rounded-full font-bold tracking-widest transition-all shadow-[0_0_20px_rgba(204,185,153,0.2)] text-sm uppercase"
           >
-            Documentation
-          </a>
+            Try our web auditor
+          </Link>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
