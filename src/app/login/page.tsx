@@ -9,8 +9,14 @@ import { sendPasswordResetEmail } from "firebase/auth";
 import Image from "next/image";
 
 export default function LoginPage() {
-  const { loginWithGoogle, loginWithEmail, signupWithEmail } = useAuth();
+  const { loginWithGoogle, loginWithEmail, signupWithEmail, user } = useAuth();
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (user) {
+      router.push("/dashboard");
+    }
+  }, [user, router]);
   
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
