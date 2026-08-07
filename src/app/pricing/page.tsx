@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
 
 const PLANS = [
   { name: "Free Trial", monthly: 0, annual: 0, desc: "Predict bottlenecks and optimize team" },
@@ -41,6 +42,44 @@ const CrossIcon = () => (
 export default function PricingPage() {
   const [isAnnual, setIsAnnual] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const { user } = useAuth();
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+
+  const handleSubscribe = async (planName: string) => {
+    if (planName === "Free Trial") {
+      window.location.href = "/new-audit";
+      return;
+    }
+    
+    if (!user) {
+      alert("Please log in to upgrade your plan.");
+      return;
+    }
+
+    setLoadingPlan(planName);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: planName,
+          isAnnual,
+          userId: user.uid
+        })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Failed to initiate checkout");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred. Please try again.");
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
 
   return (
     <main className="relative min-h-screen w-full text-white font-['var(--font-montserrat)'] flex flex-col items-center bg-transparent pt-12 md:pt-20">
@@ -93,8 +132,12 @@ export default function PricingPage() {
               </span>
               <span className="text-white/50 text-sm pb-1.5">/ Month</span>
             </div>
-            <button className={`w-full py-3.5 rounded-full text-sm font-bold transition-colors mb-8 ${plan.popular ? 'bg-[#1c3021] text-white hover:bg-[#1c3021]/80' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'}`}>
-              Start For Free
+            <button 
+              onClick={() => handleSubscribe(plan.name)}
+              disabled={loadingPlan === plan.name}
+              className={`w-full py-3.5 rounded-full text-sm font-bold transition-colors mb-8 ${plan.popular ? 'bg-[#1c3021] text-white hover:bg-[#1c3021]/80' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'} ${loadingPlan === plan.name ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {loadingPlan === plan.name ? "Processing..." : (plan.name === "Free Trial" ? "Start For Free" : "Upgrade Now")}
             </button>
             <span className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">Features Included</span>
             <ul className="flex flex-col gap-3">

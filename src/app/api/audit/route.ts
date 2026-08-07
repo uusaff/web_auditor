@@ -4,8 +4,8 @@ import { URL } from 'url';
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 import OpenAI from 'openai';
-import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import * as admin from 'firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import * as cheerio from 'cheerio';
@@ -122,19 +122,19 @@ export async function POST(req: NextRequest) {
     let docRef: any = null;
     let docId = '';
     
-    // Only attempt database cache if project ID is defined
-    if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+    // Only attempt database cache if project ID is defined and adminDb is ready
+    if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && adminDb) {
       // Append _deep to the cache key if it's a deep crawl so they don't overwrite each other
       docId = targetUrl.replace(/[^a-zA-Z0-9]/g, '_') + (deepCrawl ? '_deep' : '');
-      docRef = doc(db, 'audits', docId);
+      docRef = adminDb.collection('audits').doc(docId);
       
       try {
         console.log(`[Audit API] Checking cache for ${docId}...`);
         // Wrap getDoc in a 5-second timeout so it never hangs infinitely
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase timeout")), 5000));
-        const docSnap = await Promise.race([getDoc(docRef), timeoutPromise]) as any;
+        const docSnap = await Promise.race([docRef.get(), timeoutPromise]) as any;
         
-        if (docSnap && docSnap.exists()) {
+        if (docSnap && docSnap.exists) {
           const data = docSnap.data();
           const ageInHours = (Date.now() - (data.createdAt || 0)) / (1000 * 60 * 60);
           
@@ -152,13 +152,16 @@ export async function POST(req: NextRequest) {
     // --- USER TIER FETCH ---
     let userTier = 'free';
     let credits = 0;
-    if (userId && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+    let userDocRef: any = null;
+    
+    if (userId && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && adminDb) {
       try {
-        const userDocRef = doc(db, 'users', userId);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          userTier = userDocSnap.data().userTier || 'free';
-          credits = userDocSnap.data().credits ?? 0;
+        userDocRef = adminDb.collection('users').doc(userId);
+        const userDocSnap = await userDocRef.get();
+        if (userDocSnap.exists) {
+          const data = userDocSnap.data();
+          userTier = data?.userTier || 'free';
+          credits = data?.credits ?? 0;
         }
       } catch (e) {
         console.error("Failed to fetch user tier, defaulting to free", e);
@@ -397,29 +400,28 @@ export async function POST(req: NextRequest) {
     }
 
     // --- DATABASE CACHE SAVE ---
-    if (docRef) {
+    if (docRef && adminDb) {
       try {
         console.log(`[Audit API] Attempting to save new audit to database...`);
         const saveTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase write timeout")), 3000));
-        await Promise.race([setDoc(docRef, parsedResult), saveTimeout]);
+        await Promise.race([docRef.set(parsedResult), saveTimeout]);
         console.log(`[Audit API] Saved new audit for ${targetUrl} to database.`);
         
         // Also save a lightweight reference to user's history if logged in
-        if (userId) {
+        if (userId && userDocRef) {
           const historyId = Date.now().toString();
-          const userHistoryRef = doc(db, 'users', userId, 'history', historyId);
+          const userHistoryRef = userDocRef.collection('history').doc(historyId);
           const lightweightDoc = {
             url: targetUrl,
             createdAt: parsedResult.createdAt,
             overall_health: parsedResult.overall_health,
             reportRef: docId
           };
-          await Promise.race([setDoc(userHistoryRef, lightweightDoc), saveTimeout]);
+          await Promise.race([userHistoryRef.set(lightweightDoc), saveTimeout]);
           
           // Decrement user credits
-          const userDocRef = doc(db, 'users', userId);
           await Promise.race([
-            updateDoc(userDocRef, { credits: increment(-1) }),
+            userDocRef.update({ credits: admin.firestore.FieldValue.increment(-1) }),
             saveTimeout
           ]);
           console.log(`[Audit API] Decremented credits for user ${userId}`);
