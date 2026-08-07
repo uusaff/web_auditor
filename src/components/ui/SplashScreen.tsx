@@ -32,7 +32,7 @@ export default function SplashScreen({ children }: { children?: React.ReactNode 
               className="flex flex-col items-center gap-6"
             >
               <div className="relative w-24 h-24 rounded-full overflow-hidden border border-sky-300/30">
-                <Image src="/usf-logo.jpg" alt="AI Auditor Logo" fill sizes="96px" priority className="object-cover" />
+                <Image src="/usf-logo.jpg" alt="AI Auditor Logo" fill sizes="96px" priority className="object-cover grayscale" />
               </div>
               <h1 className="text-3xl tracking-[0.3em] text-[#ccb999] font-['VictoryStriker']">
                 AI AUDITOR

@@ -30,7 +30,7 @@ export default function Navbar() {
       {/* Left Actions: Logo (moved back to left) */}
       <div className="flex items-center">
         <Link href="/" className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center transition-transform hover:scale-105">
-           <Image src="/logo.png" alt="Logo" fill sizes="64px" className="object-contain" />
+           <Image src="/logo.png" alt="Logo" fill sizes="64px" className="object-contain grayscale" />
         </Link>
       </div>
 

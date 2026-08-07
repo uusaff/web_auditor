@@ -104,7 +104,7 @@ export default function LoginPage() {
                   {isLogin ? "Welcome Back" : "Create Account"}
                 </h2>
                 <div className="w-12 h-12 relative rounded-full overflow-hidden border border-white/10">
-                  <Image src="/usf-logo.jpg" alt="Logo" fill className="object-cover" />
+                  <Image src="/usf-logo.jpg" alt="Logo" fill className="object-cover grayscale" />
                 </div>
               </div>
 
