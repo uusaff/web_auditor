@@ -13,36 +13,28 @@ export default function Home() {
       <div className="relative z-10 flex-1 w-full flex flex-col items-center pt-[18vh] px-6">
         
         {/* Typographic Hero */}
-        <div className="flex flex-col items-center w-full max-w-[1200px] mt-4 md:mt-12">
+        <section className="flex flex-col items-center justify-center w-full max-w-[1400px] mt-4 md:mt-12 text-center">
           <h1 
-            className="flex justify-between w-full text-[22vw] md:text-[260px] font-bold leading-[0.8] text-[#1c3021] font-['VictoryStriker'] uppercase"
+            className="w-full text-[clamp(3rem,15vw,260px)] font-bold leading-[0.8] text-[#1c3021] font-['VictoryStriker'] uppercase"
             style={{ 
               textShadow: "4px 4px 10px rgba(0,0,0,0.15), 1px 1px 2px rgba(255,255,255,0.2)",
               transform: "scaleY(1.15)", 
               transformOrigin: "bottom"
             }}
           >
-            {"PERFECTION".split("").map((char, index) => (
-              <span key={index}>{char}</span>
-            ))}
+            Automated Web Audits via AI
           </h1>
-          
-          <div className="w-full relative h-16 md:h-20 mt-4">
-            <h2 className="absolute right-[5%] md:right-[2%] top-0 text-3xl md:text-5xl font-light tracking-[0.2em] text-[#ccb999]">
-              IS A COMPUTATION
-            </h2>
-          </div>
-        </div>
+        </section>
 
         {/* Brief Intro */}
-        <div className="mt-auto mb-10 w-full max-w-3xl flex flex-col items-center text-center px-4">
+        <section className="mt-auto mb-10 w-full max-w-3xl flex flex-col items-center text-center px-4">
           <p className="text-white/80 font-light text-lg md:text-xl leading-relaxed tracking-wide">
             A context-aware diagnostic engine that goes beyond basic scanners. We deeply map your architecture, bypass enterprise security walls, and generate exact, copy-pasteable code patches to engineer a flawless digital experience.
           </p>
-        </div>
+        </section>
 
         {/* Action Buttons */}
-        <div className="mb-[15vh] w-full max-w-[700px] flex flex-col sm:flex-row items-center justify-center gap-6">
+        <section className="mb-[15vh] w-full max-w-[700px] flex flex-col sm:flex-row items-center justify-center gap-6">
           <Link 
             href="/about"
             className="w-full sm:w-auto text-center bg-transparent border border-white/20 hover:border-white/50 hover:bg-white/5 text-white/90 px-8 py-4 rounded-full font-light tracking-widest transition-all text-sm uppercase"
@@ -55,7 +47,7 @@ export default function Home() {
           >
             Try our web auditor
           </Link>
-        </div>
+        </section>
       </div>
     </main>
   );

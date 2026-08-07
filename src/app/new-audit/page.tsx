@@ -35,8 +35,10 @@ export default function NewAuditPage() {
 
         {/* Search Input Area */}
         <div className="w-full max-w-[700px] flex flex-col items-center">
-          <form onSubmit={handleAudit} className="w-full">
+          <form onSubmit={handleAudit} className="w-full flex flex-col items-center">
+            <label htmlFor="audit-url" className="sr-only">Enter Website URL to Audit</label>
             <input
+              id="audit-url"
               type="text"
               placeholder="Enter Your Website URL (i.e Apple.com)"
               value={url}
@@ -44,16 +46,28 @@ export default function NewAuditPage() {
               className="w-full h-14 md:h-[60px] rounded-[30px] bg-[#2a302a]/60 backdrop-blur-md border border-white/10 text-white placeholder:text-white/80 text-center text-base md:text-lg font-light focus:outline-none focus:ring-2 focus:ring-white/30 transition-all shadow-2xl"
               required
             />
+            <button 
+              type="submit"
+              className="mt-6 w-full md:w-auto px-8 h-12 md:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-medium tracking-wide transition-all shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+            >
+              Launch Audit
+            </button>
           </form>
           
-          <div className="mt-8 flex items-center justify-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/10 backdrop-blur-md cursor-pointer hover:bg-black/60 transition-colors" onClick={() => setIsDeepCrawl(!isDeepCrawl)}>
+          <button 
+            type="button"
+            role="switch"
+            aria-checked={isDeepCrawl}
+            onClick={() => setIsDeepCrawl(!isDeepCrawl)}
+            className="mt-8 flex items-center justify-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/10 backdrop-blur-md cursor-pointer hover:bg-black/60 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+          >
             <div className={`w-10 h-5 rounded-full flex items-center p-1 transition-colors ${isDeepCrawl ? 'bg-sky-500' : 'bg-white/20'}`}>
               <div className={`w-3.5 h-3.5 bg-white rounded-full shadow-md transform transition-transform ${isDeepCrawl ? 'translate-x-5' : 'translate-x-0'}`} />
             </div>
             <span className="text-xs font-light tracking-[0.1em] text-white/80">
               Deep Crawl <span className="text-white/40">(Analyzes multiple pages, takes ~20s)</span>
             </span>
-          </div>
+          </button>
         </div>
 
       </div>

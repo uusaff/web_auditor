@@ -96,11 +96,13 @@ export default function SettingsPage() {
     <div className="max-w-6xl mx-auto w-full flex flex-col md:flex-row gap-8">
       
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 shrink-0 flex flex-col gap-2">
+      <aside className="w-full md:w-64 shrink-0 flex flex-col gap-2" role="tablist">
         <h1 className="font-victory text-3xl mb-6 text-white tracking-wider">SETTINGS</h1>
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`text-left px-4 py-3 rounded-xl transition-all duration-300 font-montserrat font-medium ${
               activeTab === tab.id 
@@ -137,8 +139,9 @@ export default function SettingsPage() {
                 <div className="space-y-6 max-w-2xl">
                   {/* API KEY */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2 font-montserrat">OpenRouter API Key (BYOK)</label>
+                    <label htmlFor="openrouter-key" className="block text-sm font-medium text-gray-300 mb-2 font-montserrat">OpenRouter API Key (BYOK)</label>
                     <input 
+                      id="openrouter-key"
                       type="password" 
                       value={openRouterKey}
                       onChange={(e) => setOpenRouterKey(e.target.value)}
@@ -151,10 +154,11 @@ export default function SettingsPage() {
                   {/* SCRAPING DEPTH */}
                   <div className="flex items-center justify-between p-4 rounded-lg bg-black/30 border border-gray-800">
                     <div>
-                      <h3 className="text-white font-medium font-montserrat">Scraping Depth</h3>
+                      <label htmlFor="scraping-depth" className="block text-white font-medium font-montserrat">Scraping Depth</label>
                       <p className="text-sm text-gray-400">Full page uses heavily compressed screenshots but captures more layout data.</p>
                     </div>
                     <select 
+                      id="scraping-depth"
                       value={scrapingDepth}
                       onChange={(e) => setScrapingDepth(e.target.value as "viewport" | "full")}
                       className="bg-black border border-gray-700 text-white rounded-lg px-4 py-2 outline-none focus:border-[#ccb999]"
@@ -184,12 +188,13 @@ export default function SettingsPage() {
                   {/* EXPORT FORMAT */}
                   <div className="flex items-center justify-between p-4 rounded-lg bg-black/30 border border-gray-800">
                     <div>
-                      <h3 className="text-white font-medium font-montserrat">Default Export Format</h3>
+                      <label htmlFor="export-format" className="block text-white font-medium font-montserrat">Default Export Format</label>
                       <p className="text-sm text-gray-400">Preferred format when downloading audit reports.</p>
                     </div>
                     <select 
+                      id="export-format"
                       value={exportFormat}
-                      onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+                      onChange={(e) => setExportFormat(e.target.value as any)}
                       className="bg-black border border-gray-700 text-white rounded-lg px-4 py-2 outline-none focus:border-[#ccb999]"
                     >
                       <option value="dashboard">Dashboard UI</option>
@@ -236,8 +241,8 @@ export default function SettingsPage() {
                   <h3 className="text-white font-medium font-montserrat mb-4">Recent Audit History</h3>
                   
                   {historyLoading ? (
-                    <div className="animate-pulse flex flex-col gap-3">
-                      {[1,2,3].map(i => <div key={i} className="h-16 bg-white/5 rounded-lg w-full"></div>)}
+                    <div className="animate-pulse flex flex-col gap-3" aria-busy="true">
+                      {[1,2,3].map(i => <div key={i} className="h-16 bg-white/5 rounded-lg w-full" aria-hidden="true"></div>)}
                     </div>
                   ) : auditHistory.length === 0 ? (
                     <div className="text-center py-12 bg-black/30 rounded-lg border border-dashed border-gray-700">

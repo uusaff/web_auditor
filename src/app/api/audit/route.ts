@@ -8,6 +8,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import * as cheerio from 'cheerio';
 
 export const maxDuration = 60; // Max execution time for Vercel
 
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     
     // --- RATE LIMIT CHECK ---
     if (process.env.UPSTASH_REDIS_REST_URL) {
-      const ip = req.ip ?? req.headers?.get?.('x-forwarded-for') ?? 'anonymous';
+      const ip = (req as any).ip ?? req.headers?.get?.('x-forwarded-for') ?? 'anonymous';
       const identifier = userId ? `audit_user_${userId}` : `audit_ip_${ip}`;
       const { success, limit, reset, remaining } = await rateLimit.limit(identifier);
       if (!success) {
@@ -144,115 +145,173 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- STEP 1: Scrape with Playwright ---
-    console.log(`[Audit API] Launching headless browser...`);
-    let browser: Browser | null = null;
+
+    // --- USER TIER FETCH ---
+    let userTier = 'free';
+    if (userId && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+      try {
+        const userDocRef = doc(db, 'users', userId);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          userTier = userDocSnap.data().userTier || 'free';
+        }
+      } catch (e) {
+        console.error("Failed to fetch user tier, defaulting to free", e);
+      }
+    }
+
     let aggregatedData = {
       pagesAnalyzed: 0,
       titles: [] as string[],
       metaDescriptions: [] as string[],
       totalImagesWithoutAlt: 0,
       totalH1Count: 0,
-      bodyTextSnippet: ""
+      bodyTextSnippet: "",
+      lighthouse: null as any
     };
     let screenshotBase64 = null;
     const startTime = Date.now();
-    const urlsToScrape = [targetUrl];
-    const scrapedUrls = new Set<string>();
-    const MAX_PAGES = deepCrawl ? 3 : 1;
 
+    // --- LIGHTHOUSE API FETCH ---
+    console.log(`[Audit API] Fetching Google PageSpeed Insights for ${targetUrl}...`);
     try {
-      if (process.env.BROWSERLESS_API_KEY) {
-        browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
-      } else {
-        browser = await chromium.launch({ headless: true });
+      const lhUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(targetUrl)}&category=performance&category=accessibility&category=best-practices&category=seo`;
+      const lhRes = await fetch(lhUrl);
+      if (lhRes.ok) {
+        const lhData = await lhRes.json();
+        const categories = lhData?.lighthouseResult?.categories;
+        if (categories) {
+          aggregatedData.lighthouse = {
+            Performance: Math.round((categories.performance?.score || 0) * 100),
+            Accessibility: Math.round((categories.accessibility?.score || 0) * 100),
+            BestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
+            SEO: Math.round((categories.seo?.score || 0) * 100)
+          };
+        }
       }
-    
-      // Add realistic User-Agent and headers to bypass basic WAFs (like Akamai on tesla.com)
-      const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        viewport: { width: 1920, height: 1080 },
-        extraHTTPHeaders: {
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          'Upgrade-Insecure-Requests': '1'
-        }
-      });
-    
-    while (urlsToScrape.length > 0 && aggregatedData.pagesAnalyzed < MAX_PAGES) {
-      const currentUrl = urlsToScrape.shift()!;
-      
-      // Skip if we already scraped it, or if it's just an anchor link of something we already scraped
-      const urlWithoutHash = currentUrl.split('#')[0];
-      if (scrapedUrls.has(urlWithoutHash)) continue;
-      
-      console.log(`[Audit API] Crawling [${aggregatedData.pagesAnalyzed + 1}/${MAX_PAGES}]: ${currentUrl}`);
-      const page = await context.newPage();
-      try {
-        await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-        
-        // Take screenshot ONLY of the first page to save bandwidth
-        if (aggregatedData.pagesAnalyzed === 0) {
-          console.log(`[Audit API] Capturing screenshot of home page...`);
-          // OPTIMIZATION: fullPage: based on scrapingDepth, quality: 50 for compression
-          const isFullPage = scrapingDepth !== 'viewport';
-          const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 50, fullPage: isFullPage, scale: 'css' }).catch(() => null);
-          screenshotBase64 = screenshotBuffer ? screenshotBuffer.toString('base64') : null;
-        }
-
-        const title = await page.title().catch(() => 'Unknown Title');
-        const metaDescription = await page.evaluate(() => {
-          const meta = document.querySelector('meta[name="description"]');
-          return meta ? meta.getAttribute('content') : null;
-        }).catch(() => null);
-
-        const imagesWithoutAlt = await page.evaluate(() => document.querySelectorAll('img:not([alt])').length).catch(() => 0);
-        const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length).catch(() => 0);
-        
-        // SANITIZATION: Remove noisy elements before parsing text
-        if (domSanitization !== false) {
-          await page.evaluate(() => {
-            document.querySelectorAll('script, style, svg, noscript, iframe').forEach(el => el.remove());
-          }).catch(() => {});
-        }
-        const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 3000)).catch(() => '');
-
-        aggregatedData.pagesAnalyzed++;
-        aggregatedData.titles.push(title);
-        if (metaDescription) aggregatedData.metaDescriptions.push(metaDescription);
-        aggregatedData.totalImagesWithoutAlt += imagesWithoutAlt;
-        aggregatedData.totalH1Count += h1Count;
-        aggregatedData.bodyTextSnippet += `\n--- Page: ${currentUrl} ---\n${bodyText}`;
-
-        // Discover new internal links for Deep Crawl
-        if (deepCrawl && aggregatedData.pagesAnalyzed < MAX_PAGES) {
-          const links = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('a[href]'))
-              .map(a => (a as HTMLAnchorElement).href)
-              .filter(href => href.startsWith(window.location.origin) && !href.includes('#'));
-          }).catch(() => []);
-          
-          for (const link of links) {
-            if (!scrapedUrls.has(link) && !urlsToScrape.includes(link)) {
-              urlsToScrape.push(link);
-            }
-          }
-        }
-      } catch (e) {
-        console.log(`[Audit API] Error crawling ${currentUrl}:`, e);
-      } finally {
-        scrapedUrls.add(urlWithoutHash);
-        await page.close();
-      }
+    } catch (e) {
+      console.log(`[Audit API] Lighthouse fetch failed.`, e);
     }
 
-    } finally {
-      if (browser) {
-        await browser.close();
+    // --- TWO TIER ROUTING ---
+    if (userTier !== 'pro') {
+      console.log(`[Audit API] FREE TIER - Launching lightweight static scraper for ${targetUrl}...`);
+      try {
+        const res = await fetch(targetUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        
+        aggregatedData.pagesAnalyzed = 1;
+        const title = $('title').text() || 'Unknown Title';
+        aggregatedData.titles.push(title);
+        
+        const metaDesc = $('meta[name="description"]').attr('content');
+        if (metaDesc) aggregatedData.metaDescriptions.push(metaDesc);
+        
+        aggregatedData.totalH1Count = $('h1').length;
+        aggregatedData.totalImagesWithoutAlt = $('img:not([alt])').length;
+        
+        if (domSanitization !== false) {
+          $('script, style, svg, noscript, iframe').remove();
+        }
+        aggregatedData.bodyTextSnippet = `\n--- Page: ${targetUrl} ---\n` + $('body').text().substring(0, 3000).replace(/\s+/g, ' ');
+      } catch (e) {
+        console.log(`[Audit API] Static scraper failed:`, e);
+      }
+    } else {
+      console.log(`[Audit API] PRO TIER - Launching headless browser...`);
+      let browser: Browser | null = null;
+      const urlsToScrape = [targetUrl];
+      const scrapedUrls = new Set<string>();
+      const MAX_PAGES = deepCrawl ? 3 : 1;
+
+      try {
+        if (process.env.BROWSERLESS_API_KEY) {
+          browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
+        } else {
+          browser = await chromium.launch({ headless: true });
+        }
+      
+        const context = await browser.newContext({
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          viewport: { width: 1920, height: 1080 },
+          extraHTTPHeaders: {
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
+          }
+        });
+      
+        while (urlsToScrape.length > 0 && aggregatedData.pagesAnalyzed < MAX_PAGES) {
+          const currentUrl = urlsToScrape.shift()!;
+          const urlWithoutHash = currentUrl.split('#')[0];
+          if (scrapedUrls.has(urlWithoutHash)) continue;
+          
+          console.log(`[Audit API] Crawling [${aggregatedData.pagesAnalyzed + 1}/${MAX_PAGES}]: ${currentUrl}`);
+          const page = await context.newPage();
+          try {
+            await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            
+            if (aggregatedData.pagesAnalyzed === 0) {
+              console.log(`[Audit API] Capturing screenshot of home page...`);
+              const isFullPage = scrapingDepth !== 'viewport';
+              const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 50, fullPage: isFullPage, scale: 'css' }).catch(() => null);
+              screenshotBase64 = screenshotBuffer ? screenshotBuffer.toString('base64') : null;
+            }
+
+            const title = await page.title().catch(() => 'Unknown Title');
+            const metaDescription = await page.evaluate(() => {
+              const meta = document.querySelector('meta[name="description"]');
+              return meta ? meta.getAttribute('content') : null;
+            }).catch(() => null);
+
+            const imagesWithoutAlt = await page.evaluate(() => document.querySelectorAll('img:not([alt])').length).catch(() => 0);
+            const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length).catch(() => 0);
+            
+            if (domSanitization !== false) {
+              await page.evaluate(() => {
+                document.querySelectorAll('script, style, svg, noscript, iframe').forEach(el => el.remove());
+              }).catch(() => {});
+            }
+            const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 3000)).catch(() => '');
+
+            aggregatedData.pagesAnalyzed++;
+            aggregatedData.titles.push(title);
+            if (metaDescription) aggregatedData.metaDescriptions.push(metaDescription);
+            aggregatedData.totalImagesWithoutAlt += imagesWithoutAlt;
+            aggregatedData.totalH1Count += h1Count;
+            aggregatedData.bodyTextSnippet += `\n--- Page: ${currentUrl} ---\n${bodyText}`;
+
+            if (deepCrawl && aggregatedData.pagesAnalyzed < MAX_PAGES) {
+              const links = await page.evaluate(() => {
+                return Array.from(document.querySelectorAll('a[href]'))
+                  .map(a => (a as HTMLAnchorElement).href)
+                  .filter(href => href.startsWith(window.location.origin) && !href.includes('#'));
+              }).catch(() => []);
+              
+              for (const link of links) {
+                if (!scrapedUrls.has(link) && !urlsToScrape.includes(link)) {
+                  urlsToScrape.push(link);
+                }
+              }
+            }
+          } catch (e) {
+            console.log(`[Audit API] Error crawling ${currentUrl}:`, e);
+          } finally {
+            scrapedUrls.add(urlWithoutHash);
+            await page.close();
+          }
+        }
+      } finally {
+        if (browser) {
+          await browser.close();
+        }
       }
     }
 
@@ -271,12 +330,12 @@ export async function POST(req: NextRequest) {
     Meta Descriptions found: ${JSON.stringify(aggregatedData.metaDescriptions)}
     Total Crawl Time: ${loadTimeSeconds} seconds
     Total Images missing alt tags across all pages: ${aggregatedData.totalImagesWithoutAlt}
-    Total H1 tags across all pages: ${aggregatedData.totalH1Count}
+    Total H1 tags across all pages: ${aggregatedData.totalH1Count}\n    Google Lighthouse Metrics (Hard Data): ${JSON.stringify(aggregatedData.lighthouse || 'Unavailable')}
     
     Aggregated Content Snippets:
     ${aggregatedData.bodyTextSnippet.substring(0, 3000)}
     
-    Based on this data AND the provided screenshot (which shows the visual layout), provide:
+    Based on this data (including the deterministic Google Lighthouse Metrics if available) AND the provided screenshot (which shows the visual layout), provide:
     1. An overall health score (0-100). Calculate this realistically based on UX, design contrast, load time, missing alts, multi-page consistency, etc.
     2. 4 specific scores (Performance, Accessibility, Best Practices, SEO) out of 100.
     3. A list of exactly 4 specific, actionable suggestions for improvement derived directly from the scraped data and the screenshot above. DO NOT give generic advice. Mention specific visual layout issues if you see them.
@@ -305,7 +364,7 @@ export async function POST(req: NextRequest) {
         json_schema: {
           name: "AuditReport",
           strict: true,
-          schema: zodToJsonSchema(AuditReportSchema)
+          schema: zodToJsonSchema(AuditReportSchema as any) as any
         }
       },
       temperature: 0.7,

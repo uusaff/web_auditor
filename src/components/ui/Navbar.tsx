@@ -67,6 +67,8 @@ export default function Navbar() {
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="relative flex items-center justify-center w-11 h-11 rounded-full border border-white/20 bg-black/40 hover:border-sky-300/50 hover:bg-white/5 transition-all overflow-hidden"
             aria-label="Menu"
+            aria-expanded={isDropdownOpen}
+            aria-haspopup="true"
           >
             {user?.photoURL ? (
               <Image src={user.photoURL} alt="User" fill className="object-cover" unoptimized />
@@ -79,9 +81,17 @@ export default function Navbar() {
             )}
           </button>
 
-          {/* Dropdown Menu */}
           {isDropdownOpen && (
             <div className="absolute right-0 mt-3 w-56 bg-[#151f18]/95 border border-white/10 rounded-2xl shadow-2xl py-2 flex flex-col backdrop-blur-xl overflow-hidden">
+              {/* Mobile Core Navigation Links */}
+              <div className="md:hidden flex flex-col border-b border-white/10 pb-1 mb-1">
+                <Link href="/" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Home</Link>
+                <Link href="/about" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">About</Link>
+                <Link href="/features" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Features</Link>
+                <Link href="/pricing" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Pricing</Link>
+                <Link href="/enterprise" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Enterprise</Link>
+              </div>
+
               {!loading && user ? (
                 <>
                   <div className="px-4 py-3 border-b border-white/10 mb-1 bg-black/20">
@@ -130,6 +140,8 @@ export default function Navbar() {
               
               <button 
                 onClick={toggleDarkMode}
+                role="switch"
+                aria-checked={isDarkMode}
                 className="w-full flex items-center justify-between px-4 py-3 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors"
               >
                 <span>Dark Mode Overlay</span>

@@ -8,12 +8,12 @@ import { useAuth } from "@/context/AuthContext";
 export default function AboutPage() {
   const { user, loginWithGoogle, logout, loading: authLoading } = useAuth();
 
-  const fadeIn = {
+  const fadeIn: any = {
     hidden: { opacity: 0, y: 30 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } }
   };
 
-  const staggerContainer = {
+  const staggerContainer: any = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,

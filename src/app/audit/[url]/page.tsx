@@ -9,7 +9,7 @@ import AiSuggestions from "@/components/dashboard/AiSuggestions";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 export default function AuditDashboard() {
   const params = useParams();
@@ -25,8 +25,10 @@ export default function AuditDashboard() {
   const [loading, setLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('Initializing Engine...');
   const [error, setError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const { user, loginWithGoogle, logout, loading: authLoading } = useAuth();
   const { openRouterKey, scrapingDepth, domSanitization } = useSettings();
+  const [isPro, setIsPro] = useState(false);
   
   const componentRef = useRef(null);
   
@@ -80,10 +82,36 @@ export default function AuditDashboard() {
     }
     
     // We can only run this if auth is loaded, to make sure user context is correct
+
+    async function fetchUserTier() {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists() && userDoc.data().userTier === 'pro') {
+            setIsPro(true);
+          } else {
+            setIsPro(false);
+          }
+        } catch (e) {
+          setIsPro(false);
+        }
+      } else {
+        setIsPro(false);
+      }
+    }
+
     if (!authLoading) {
+      fetchUserTier();
+
       fetchAudit();
     }
-  }, [decodedUrl, user, authLoading, isDeepCrawl]);
+  }, [decodedUrl, user, authLoading, isDeepCrawl, retryTrigger]);
+
+  const retryAudit = () => {
+    setError(null);
+    setLoading(true);
+    setRetryTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     if (!loading) return;
@@ -155,9 +183,26 @@ export default function AuditDashboard() {
         </header>
 
         {error ? (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-8 text-center text-red-200">
-            <h3 className="text-xl mb-2 font-bold">Audit Failed</h3>
-            <p>{error}</p>
+          <div className="flex flex-col items-center justify-center p-12 bg-red-500/10 border border-red-500/20 rounded-[30px] backdrop-blur-md shadow-2xl text-center max-w-2xl mx-auto mt-12 w-full">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 mb-6">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <h3 className="text-2xl font-bold tracking-tight text-white mb-3">Audit Failed</h3>
+            <p className="text-red-200/80 mb-8 max-w-md">{error}</p>
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+              <button 
+                onClick={retryAudit}
+                className="px-8 py-3 bg-[#ccb999] hover:bg-[#b8a485] text-black font-bold uppercase tracking-widest text-sm rounded-full transition-colors w-full sm:w-auto"
+              >
+                Try Again
+              </button>
+              <Link 
+                href="/new-audit"
+                className="px-8 py-3 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white uppercase tracking-widest text-sm rounded-full transition-colors w-full sm:w-auto border border-white/10"
+              >
+                Return to Dashboard
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -221,7 +266,7 @@ export default function AuditDashboard() {
                     {loading ? 'Scanning...' : `${data?.suggestions?.length || 0} Issues Found`}
                   </span>
                 </div>
-                <AiSuggestions suggestions={data?.suggestions || []} loading={loading} />
+                <AiSuggestions suggestions={data?.suggestions || []} loading={loading} isPro={isPro} />
               </div>
             </div>
             

@@ -7,7 +7,7 @@ type SuggestionType = {
   fix_code?: string;
 };
 
-export default function AiSuggestions({ suggestions, loading = false }: { suggestions: SuggestionType[], loading?: boolean }) {
+export default function AiSuggestions({ suggestions, loading = false, isPro = false }: { suggestions: SuggestionType[], loading?: boolean, isPro?: boolean }) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   
   // GitHub PR Modal State
@@ -127,25 +127,45 @@ export default function AiSuggestions({ suggestions, loading = false }: { sugges
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-sky-500 to-[#ccb999]" />
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xs tracking-widest uppercase text-white/40">Suggested Code Fix</span>
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => setPrModalState({ isOpen: true, index: i, loading: false, error: null, prUrl: null })}
-                      className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-2 border border-orange-500/30 px-3 py-1 rounded-full"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-                      Create PR
-                    </button>
-                    <button 
-                      onClick={() => navigator.clipboard.writeText(item.fix_code || '')}
-                      className="text-xs text-sky-400 hover:text-sky-300 transition-colors"
-                    >
-                      Copy
-                    </button>
-                  </div>
+                  {isPro && (
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setPrModalState({ isOpen: true, index: i, loading: false, error: null, prUrl: null })}
+                        className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-2 border border-orange-500/30 px-3 py-1 rounded-full"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+                        Create PR
+                      </button>
+                      <button 
+                        onClick={() => navigator.clipboard.writeText(item.fix_code || '')}
+                        className="text-xs text-sky-400 hover:text-sky-300 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <pre className="font-mono text-sm text-sky-200 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                  <code>{item.fix_code}</code>
-                </pre>
+                
+                <div className="relative">
+                  <pre className={`font-mono text-sm text-sky-200 overflow-x-auto whitespace-pre-wrap leading-relaxed ${!isPro ? 'filter blur-md select-none opacity-50' : ''}`}>
+                    <code>{item.fix_code}</code>
+                  </pre>
+                  
+                  {!isPro && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-10 rounded-lg">
+                      <div className="bg-[#121a14]/95 p-6 rounded-2xl border border-orange-500/30 text-center shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md">
+                        <svg className="w-8 h-8 text-orange-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <h4 className="text-white text-lg tracking-wide mb-2 font-bold">Pro Feature Locked</h4>
+                        <p className="text-white/60 text-sm mb-6 max-w-xs">Upgrade to Pro to unlock copy-paste React/Tailwind code solutions and 1-click GitHub PR deployment.</p>
+                        <button className="px-6 py-2.5 bg-gradient-to-r from-orange-600 to-[#ccb999] hover:from-orange-500 hover:to-white text-black font-bold uppercase tracking-widest text-xs rounded-full transition-all shadow-lg w-full">
+                          Upgrade to Pro
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             
