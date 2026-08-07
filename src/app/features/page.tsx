@@ -3,7 +3,7 @@ import Image from "next/image";
 
 export default function FeaturesPage() {
   return (
-    <main className="relative min-h-screen w-full text-white font-['var(--font-montserrat)'] flex flex-col items-center justify-center bg-transparent">
+    <main className="relative min-h-screen w-full text-white font-['var(--font-montserrat)'] flex flex-col items-center pt-[15vh] pb-16 md:justify-center md:pt-0 md:pb-0 bg-transparent">
 
       <div className="relative z-10 text-center flex flex-col items-center px-6">
         <h1 className="text-5xl md:text-7xl font-['VictoryStriker'] text-[#1c3021] tracking-widest mb-6">FEATURES</h1>

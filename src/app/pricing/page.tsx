@@ -81,7 +81,7 @@ export default function PricingPage() {
       {/* PRICING CARDS */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1100px] mx-auto px-6 mb-24 items-start w-full">
         {PLANS.map((plan, i) => (
-          <div key={i} className={`flex flex-col p-8 rounded-[24px] backdrop-blur-md transition-all ${plan.popular ? 'bg-gradient-to-b from-[#1c3021]/40 to-black/60 border border-[#1c3021] shadow-2xl md:-translate-y-4' : 'bg-black/40 border border-white/10'}`}>
+          <div key={i} className={`flex flex-col p-6 md:p-8 rounded-[24px] backdrop-blur-md transition-all ${plan.popular ? 'bg-gradient-to-b from-[#1c3021]/40 to-black/60 border border-[#1c3021] shadow-2xl md:-translate-y-4' : 'bg-black/40 border border-white/10'}`}>
             <div className="flex items-center justify-between mb-2">
               <span className={`text-lg font-bold ${plan.popular ? 'text-[#ccb999]' : 'text-white'}`}>{plan.name}</span>
               {plan.popular && <span className="text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-full bg-[#1c3021] text-white">Popular</span>}

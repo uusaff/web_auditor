@@ -40,7 +40,7 @@ export default function AboutPage() {
             className="flex flex-col items-center text-center mb-32"
           >
             <h1 
-              className="flex justify-between w-full text-[15vw] md:text-[180px] font-bold leading-[0.8] text-[#ccb999] font-['VictoryStriker'] uppercase mt-4 mb-8"
+              className="flex justify-between w-full text-[11vw] md:text-[180px] font-bold leading-[0.8] text-[#ccb999] font-['VictoryStriker'] uppercase mt-4 mb-8"
               style={{ 
                 textShadow: "4px 4px 10px rgba(0,0,0,0.5), 1px 1px 2px rgba(255,255,255,0.2)",
                 transform: "scaleY(1.15)", 
