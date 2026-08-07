@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-06-20",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_dummy");
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
@@ -39,7 +37,7 @@ export async function POST(req: NextRequest) {
         
         await userRef.update({
           userTier: tierId,
-          credits: admin.firestore.FieldValue.increment(addedCredits)
+          credits: FieldValue.increment(addedCredits)
         });
         
         console.log(`[Stripe Webhook] Successfully upgraded user ${userId} to ${tierId} with ${addedCredits} credits.`);

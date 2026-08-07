@@ -4,7 +4,7 @@ import { URL } from 'url';
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 import OpenAI from 'openai';
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
           
           // Decrement user credits
           await Promise.race([
-            userDocRef.update({ credits: admin.firestore.FieldValue.increment(-1) }),
+            userDocRef.update({ credits: FieldValue.increment(-1) }),
             saveTimeout
           ]);
           console.log(`[Audit API] Decremented credits for user ${userId}`);
