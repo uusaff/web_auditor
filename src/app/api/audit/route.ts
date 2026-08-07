@@ -4,7 +4,7 @@ import { URL } from 'url';
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 import OpenAI from 'openai';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required to run audits. Please log in." }, { status: 401 });
+    }
     
     // --- RATE LIMIT CHECK ---
     if (process.env.UPSTASH_REDIS_REST_URL) {
@@ -148,16 +151,22 @@ export async function POST(req: NextRequest) {
 
     // --- USER TIER FETCH ---
     let userTier = 'free';
+    let credits = 0;
     if (userId && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
       try {
         const userDocRef = doc(db, 'users', userId);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
           userTier = userDocSnap.data().userTier || 'free';
+          credits = userDocSnap.data().credits ?? 0;
         }
       } catch (e) {
         console.error("Failed to fetch user tier, defaulting to free", e);
       }
+    }
+
+    if (credits <= 0) {
+      return NextResponse.json({ error: "Out of credits. Please upgrade to Pro for more audits." }, { status: 403 });
     }
 
     let aggregatedData = {
@@ -406,6 +415,14 @@ export async function POST(req: NextRequest) {
             reportRef: docId
           };
           await Promise.race([setDoc(userHistoryRef, lightweightDoc), saveTimeout]);
+          
+          // Decrement user credits
+          const userDocRef = doc(db, 'users', userId);
+          await Promise.race([
+            updateDoc(userDocRef, { credits: increment(-1) }),
+            saveTimeout
+          ]);
+          console.log(`[Audit API] Decremented credits for user ${userId}`);
         }
       } catch (dbError) {
         console.log(`[Audit API] Failed to save to Firestore (bypassing so UI doesn't freeze):`, dbError);

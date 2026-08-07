@@ -26,42 +26,8 @@ export default function Navbar() {
 
   return (
     <nav className="relative z-50 w-full h-20 bg-black/10 border-b border-sky-400/20 backdrop-blur-sm px-6 md:px-12 flex items-center justify-between">
-      {/* Logo */}
-      <div className="flex items-center">
-        <Link href="/" className="relative w-12 h-12 rounded-full overflow-hidden bg-black/20 flex items-center justify-center border border-sky-300/30 hover:border-sky-300/60 transition-colors">
-           <Image src="/usf-logo.jpg" alt="Logo" fill sizes="48px" className="object-cover" />
-        </Link>
-      </div>
-
-      {/* Center Links */}
-      <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center justify-center w-full max-w-[800px] text-sm tracking-[0.2em] font-light text-white/90 whitespace-nowrap">
-        
-        {/* Left Side Links */}
-        <div className="flex-1 flex justify-end gap-8 pr-10">
-          <Link href="/" className={`transition-colors uppercase ${pathname === '/' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Home</Link>
-          <Link href="/about" className={`transition-colors uppercase ${pathname === '/about' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>About</Link>
-          <Link href="/features" className={`transition-colors uppercase ${pathname === '/features' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Features</Link>
-        </div>
-
-        {/* Absolute Center Link */}
-        <div className="flex-shrink-0">
-          <Link 
-            href="/new-audit" 
-            className="bg-[#ccb999] hover:bg-[#b8a485] text-black font-semibold text-xs tracking-wider uppercase px-6 py-2.5 rounded-full shadow-[0_0_15px_rgba(204,185,153,0.3)] transition-all hover:scale-105 block"
-          >
-            New Audit
-          </Link>
-        </div>
-
-        {/* Right Side Links */}
-        <div className="flex-1 flex justify-start gap-8 pl-10">
-          <Link href="/pricing" className={`transition-colors uppercase ${pathname === '/pricing' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Pricing</Link>
-          <Link href="/enterprise" className={`transition-colors uppercase ${pathname === '/enterprise' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Enterprise</Link>
-        </div>
-        
-      </div>
-
-      {/* Right Actions */}
+      
+      {/* Left Actions: User Dropdown (moved to left) */}
       <div className="flex items-center">
         {/* Global Settings & User Dropdown */}
         <div className="relative" ref={dropdownRef}>
@@ -84,7 +50,7 @@ export default function Navbar() {
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute right-0 mt-3 w-56 bg-[#151f18]/95 border border-white/10 rounded-2xl shadow-2xl py-2 flex flex-col backdrop-blur-xl overflow-hidden">
+            <div className="absolute left-0 mt-3 w-56 bg-[#151f18]/95 border border-white/10 rounded-2xl shadow-2xl py-2 flex flex-col backdrop-blur-xl overflow-hidden z-50">
               {/* Mobile Core Navigation Links */}
               <div className="md:hidden flex flex-col border-b border-white/10 pb-1 mb-1">
                 <Link href="/" onClick={() => setIsDropdownOpen(false)} className={`px-4 py-2.5 text-sm transition-colors block uppercase ${pathname === '/' ? 'text-[#ccb999] font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'}`}>Home</Link>
@@ -170,6 +136,42 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Center Links */}
+      <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center justify-center w-full max-w-[800px] text-sm tracking-[0.2em] font-light text-white/90 whitespace-nowrap">
+        
+        {/* Left Side Links */}
+        <div className="flex-1 flex justify-end gap-8 pr-10">
+          <Link href="/" className={`transition-colors uppercase ${pathname === '/' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Home</Link>
+          <Link href="/about" className={`transition-colors uppercase ${pathname === '/about' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>About</Link>
+          <Link href="/features" className={`transition-colors uppercase ${pathname === '/features' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Features</Link>
+        </div>
+
+        {/* Absolute Center Link */}
+        <div className="flex-shrink-0">
+          <Link 
+            href="/new-audit" 
+            className="bg-[#ccb999] hover:bg-[#b8a485] text-black font-semibold text-xs tracking-wider uppercase px-6 py-2.5 rounded-full shadow-[0_0_15px_rgba(204,185,153,0.3)] transition-all hover:scale-105 block"
+          >
+            New Audit
+          </Link>
+        </div>
+
+        {/* Right Side Links */}
+        <div className="flex-1 flex justify-start gap-8 pl-10">
+          <Link href="/pricing" className={`transition-colors uppercase ${pathname === '/pricing' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Pricing</Link>
+          <Link href="/enterprise" className={`transition-colors uppercase ${pathname === '/enterprise' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Enterprise</Link>
+        </div>
+        
+      </div>
+
+      {/* Logo (moved to right) */}
+      <div className="flex items-center">
+        <Link href="/" className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center transition-transform hover:scale-105">
+           <Image src="/logo.png" alt="Logo" fill sizes="64px" className="object-contain" />
+        </Link>
+      </div>
+      
     </nav>
   );
 }

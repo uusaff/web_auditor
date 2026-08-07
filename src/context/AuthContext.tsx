@@ -11,10 +11,17 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+export interface UserData {
+  userTier: 'free' | 'pro' | 'enterprise';
+  credits: number;
+}
 
 interface AuthContextType {
   user: User | null;
+  userData: UserData | null;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
@@ -24,6 +31,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  userData: null,
   loading: true,
   loginWithGoogle: async () => {},
   loginWithEmail: async () => {},
@@ -33,11 +41,39 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Listen for auth state changes
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (!userDocSnap.exists()) {
+            const newUserData: UserData = {
+              userTier: 'free',
+              credits: 3,
+            };
+            await setDoc(userDocRef, {
+              ...newUserData,
+              createdAt: Date.now(),
+              email: currentUser.email,
+              name: currentUser.displayName,
+            });
+            setUserData(newUserData);
+          } else {
+            setUserData(userDocSnap.data() as UserData);
+          }
+        } catch (error) {
+          console.error("Error fetching user data", error);
+          setUserData({ userTier: 'free', credits: 0 });
+        }
+      } else {
+        setUserData(null);
+      }
       setUser(currentUser);
       setLoading(false);
     });
@@ -89,7 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithEmail, signupWithEmail, logout }}>
+    <AuthContext.Provider value={{ user, userData, loading, loginWithGoogle, loginWithEmail, signupWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );

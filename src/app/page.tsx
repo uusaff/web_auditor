@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Home() {
@@ -10,7 +11,14 @@ export default function Home() {
     <main className="relative min-h-screen w-full text-white font-['var(--font-montserrat)'] flex flex-col bg-transparent">
 
       {/* Hero Content Area */}
-      <div className="relative z-10 flex-1 w-full flex flex-col items-center pt-[18vh] px-6">
+      <div className="relative z-10 flex-1 w-full flex flex-col items-center pt-[10vh] md:pt-[15vh] px-6">
+        
+        {/* Logo */}
+        <div className="mb-2 md:mb-6 flex justify-center w-full">
+          <div className="relative w-24 h-24 md:w-32 md:h-32">
+            <Image src="/logo.png" alt="USF Logo" fill sizes="(max-width: 768px) 96px, 128px" className="object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+          </div>
+        </div>
         
         {/* Typographic Hero */}
         <div className="flex flex-col items-center w-full max-w-[1200px] mt-4 md:mt-12">
