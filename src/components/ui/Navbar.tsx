@@ -4,10 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { usePathname } from "next/navigation";
 
 export default function Navbar() {
   const { user, loginWithGoogle, logout, loading } = useAuth();
   const { isDarkMode, toggleDarkMode } = useTheme();
+  const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +29,7 @@ export default function Navbar() {
       {/* Logo */}
       <div className="flex items-center">
         <Link href="/" className="relative w-12 h-12 rounded-full overflow-hidden bg-black/20 flex items-center justify-center border border-sky-300/30 hover:border-sky-300/60 transition-colors">
-           <Image src="/usf-logo.jpg" alt="Logo" fill className="object-cover" />
+           <Image src="/usf-logo.jpg" alt="Logo" fill sizes="48px" className="object-cover" />
         </Link>
       </div>
 
@@ -36,9 +38,9 @@ export default function Navbar() {
         
         {/* Left Side Links */}
         <div className="flex-1 flex justify-end gap-8 pr-10">
-          <Link href="/" className="hover:text-white transition-colors uppercase">Home</Link>
-          <Link href="/about" className="hover:text-white transition-colors uppercase">About</Link>
-          <Link href="/features" className="hover:text-white transition-colors uppercase">Features</Link>
+          <Link href="/" className={`transition-colors uppercase ${pathname === '/' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Home</Link>
+          <Link href="/about" className={`transition-colors uppercase ${pathname === '/about' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>About</Link>
+          <Link href="/features" className={`transition-colors uppercase ${pathname === '/features' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Features</Link>
         </div>
 
         {/* Absolute Center Link */}
@@ -53,8 +55,8 @@ export default function Navbar() {
 
         {/* Right Side Links */}
         <div className="flex-1 flex justify-start gap-8 pl-10">
-          <Link href="/pricing" className="hover:text-white transition-colors uppercase">Pricing</Link>
-          <Link href="/enterprise" className="hover:text-white transition-colors uppercase">Enterprise</Link>
+          <Link href="/pricing" className={`transition-colors uppercase ${pathname === '/pricing' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Pricing</Link>
+          <Link href="/enterprise" className={`transition-colors uppercase ${pathname === '/enterprise' ? 'text-[#ccb999] font-bold' : 'hover:text-white'}`}>Enterprise</Link>
         </div>
         
       </div>
@@ -85,11 +87,11 @@ export default function Navbar() {
             <div className="absolute right-0 mt-3 w-56 bg-[#151f18]/95 border border-white/10 rounded-2xl shadow-2xl py-2 flex flex-col backdrop-blur-xl overflow-hidden">
               {/* Mobile Core Navigation Links */}
               <div className="md:hidden flex flex-col border-b border-white/10 pb-1 mb-1">
-                <Link href="/" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Home</Link>
-                <Link href="/about" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">About</Link>
-                <Link href="/features" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Features</Link>
-                <Link href="/pricing" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Pricing</Link>
-                <Link href="/enterprise" onClick={() => setIsDropdownOpen(false)} className="px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors block uppercase">Enterprise</Link>
+                <Link href="/" onClick={() => setIsDropdownOpen(false)} className={`px-4 py-2.5 text-sm transition-colors block uppercase ${pathname === '/' ? 'text-[#ccb999] font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'}`}>Home</Link>
+                <Link href="/about" onClick={() => setIsDropdownOpen(false)} className={`px-4 py-2.5 text-sm transition-colors block uppercase ${pathname === '/about' ? 'text-[#ccb999] font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'}`}>About</Link>
+                <Link href="/features" onClick={() => setIsDropdownOpen(false)} className={`px-4 py-2.5 text-sm transition-colors block uppercase ${pathname === '/features' ? 'text-[#ccb999] font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'}`}>Features</Link>
+                <Link href="/pricing" onClick={() => setIsDropdownOpen(false)} className={`px-4 py-2.5 text-sm transition-colors block uppercase ${pathname === '/pricing' ? 'text-[#ccb999] font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'}`}>Pricing</Link>
+                <Link href="/enterprise" onClick={() => setIsDropdownOpen(false)} className={`px-4 py-2.5 text-sm transition-colors block uppercase ${pathname === '/enterprise' ? 'text-[#ccb999] font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'}`}>Enterprise</Link>
               </div>
 
               {!loading && user ? (

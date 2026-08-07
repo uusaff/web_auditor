@@ -6,7 +6,7 @@ export default function FeaturesPage() {
     <main className="relative min-h-screen w-full text-white font-['var(--font-montserrat)'] flex flex-col items-center justify-center bg-transparent">
 
       <div className="relative z-10 text-center flex flex-col items-center px-6">
-        <h1 className="text-5xl md:text-7xl font-['VictoryStriker'] text-[#ccb999] tracking-widest mb-6">FEATURES</h1>
+        <h1 className="text-5xl md:text-7xl font-['VictoryStriker'] text-[#1c3021] tracking-widest mb-6">FEATURES</h1>
         <p className="text-white/60 font-light max-w-2xl text-lg mb-12">
           Discover how our autonomous AI agents crawl, analyze, and optimize every aspect of your digital footprint with unprecedented precision.
         </p>
