@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
 type SuggestionType = {
   title: string;
@@ -8,6 +9,7 @@ type SuggestionType = {
 };
 
 export default function AiSuggestions({ suggestions, loading = false, isPro = false }: { suggestions: SuggestionType[], loading?: boolean, isPro?: boolean }) {
+  const { user } = useAuth();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   
   // GitHub PR Modal State
@@ -21,9 +23,13 @@ export default function AiSuggestions({ suggestions, loading = false, isPro = fa
     setPrModalState(prev => ({ ...prev, loading: true, error: null }));
     try {
       const fixCode = suggestions[prModalState.index].fix_code;
+      const idToken = await user?.getIdToken();
       const res = await fetch('/api/github', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
         body: JSON.stringify({ ...repoDetails, fixCode })
       });
       const data = await res.json();

@@ -25,24 +25,30 @@ const rateLimit = new Ratelimit({
   analytics: true,
 });
 
+import dns from 'dns/promises';
+
 // --- SSRF VALIDATOR ---
-function validateTargetUrl(rawUrl: string): { valid: boolean; reason?: string } {
+async function validateTargetUrl(rawUrl: string): Promise<{ valid: boolean; reason?: string }> {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return { valid: false, reason: 'Only HTTP and HTTPS protocols are supported.' };
     }
-    const hostname = parsed.hostname.toLowerCase();
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') {
-      return { valid: false, reason: 'Access to local resources is strictly prohibited.' };
+    
+    // Resolve hostname to IP
+    const { address } = await dns.lookup(parsed.hostname);
+    
+    // Check if the resolved IP is local/private
+    // Covers 127.x.x.x, 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, 0.0.0.0, ::1
+    const privateIpRegex = /^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.|0\.0\.0\.0|::1)/;
+    
+    if (privateIpRegex.test(address)) {
+      return { valid: false, reason: 'Access to internal network is prohibited.' };
     }
-    const privateIpRegex = /^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.)/;
-    if (privateIpRegex.test(hostname)) {
-      return { valid: false, reason: 'Access to internal IP ranges is prohibited.' };
-    }
+
     return { valid: true };
-  } catch {
-    return { valid: false, reason: 'Malformed URL provided.' };
+  } catch (error) {
+    return { valid: false, reason: 'Invalid hostname or unable to resolve.' };
   }
 }
 
@@ -127,7 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     // --- SSRF CHECK ---
-    const urlCheck = validateTargetUrl(targetUrl);
+    const urlCheck = await validateTargetUrl(targetUrl);
     if (!urlCheck.valid) {
       return NextResponse.json({ error: urlCheck.reason }, { status: 400 });
     }

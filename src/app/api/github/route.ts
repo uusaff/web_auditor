@@ -1,7 +1,26 @@
 import { NextResponse } from 'next/server';
+import { getAuth } from 'firebase-admin/auth';
+import { adminDb } from '@/lib/firebase-admin'; // Ensure firebase-admin is initialized
 
 export async function POST(req: Request) {
   try {
+    const authHeader = req.headers.get('authorization');
+    let userId = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const authToken = authHeader.split('Bearer ')[1];
+      try {
+        const decodedToken = await getAuth().verifyIdToken(authToken);
+        userId = decodedToken.uid;
+      } catch (e) {
+        return NextResponse.json({ error: "Invalid authentication token" }, { status: 401 });
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required to run audits. Please log in." }, { status: 401 });
+    }
+
     const { repoPath, filePath, fixCode, token } = await req.json();
 
     if (!repoPath || !filePath || !fixCode || !token) {
@@ -9,6 +28,7 @@ export async function POST(req: Request) {
     }
 
     const headers = {
+
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github.v3+json",
       "X-GitHub-Api-Version": "2022-11-28",
