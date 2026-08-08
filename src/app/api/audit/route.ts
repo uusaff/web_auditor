@@ -10,6 +10,8 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import * as cheerio from 'cheerio';
 
+import { getAuth } from 'firebase-admin/auth';
+
 export const maxDuration = 60; // Max execution time for Vercel
 
 // --- RATE LIMITER SETUP ---
@@ -73,13 +75,27 @@ const getDefaultOpenAI = () => new OpenAI({
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, deepCrawl, userId, openRouterKey, scrapingDepth, domSanitization } = await req.json();
+    const authHeader = req.headers.get('authorization');
+    let userId = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split('Bearer ')[1];
+      try {
+        const decodedToken = await getAuth().verifyIdToken(token);
+        userId = decodedToken.uid;
+      } catch (e) {
+        return NextResponse.json({ error: "Invalid authentication token" }, { status: 401 });
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: "Authentication required to run audits. Please log in." }, { status: 401 });
+    }
+
+    const { url, deepCrawl, openRouterKey, scrapingDepth, domSanitization } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
-    }
-    if (!userId) {
-      return NextResponse.json({ error: "Authentication required to run audits. Please log in." }, { status: 401 });
     }
     
     // --- RATE LIMIT CHECK ---

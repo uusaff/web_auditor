@@ -58,13 +58,17 @@ export default function PricingPage() {
 
     setLoadingPlan(planName);
     try {
+      const idToken = await user.getIdToken();
+      
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           plan: planName,
-          isAnnual,
-          userId: user.uid
+          isAnnual
         })
       });
       const data = await res.json();

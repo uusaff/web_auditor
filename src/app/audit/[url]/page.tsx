@@ -40,13 +40,17 @@ export default function AuditDashboard() {
   useEffect(() => {
     async function fetchAudit() {
       try {
+        const idToken = user ? await user.getIdToken() : null;
+        
         const response = await fetch('/api/audit', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          },
           body: JSON.stringify({ 
             url: decodedUrl, 
             deepCrawl: isDeepCrawl,
-            userId: user?.uid,
             openRouterKey,
             scrapingDepth,
             domSanitization

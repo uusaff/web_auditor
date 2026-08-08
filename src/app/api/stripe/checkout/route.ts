@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getAuth } from "firebase-admin/auth";
+import { adminDb } from "@/lib/firebase-admin"; // Ensure firebase-admin is initialized
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_dummy");
 
 export async function POST(req: NextRequest) {
   try {
-    const { plan, isAnnual, userId } = await req.json();
+    const authHeader = req.headers.get('authorization');
+    let userId = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split('Bearer ')[1];
+      try {
+        const decodedToken = await getAuth().verifyIdToken(token);
+        userId = decodedToken.uid;
+      } catch (e) {
+        return NextResponse.json({ error: "Invalid authentication token" }, { status: 401 });
+      }
+    }
 
     if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "User ID is required. Please log in." }, { status: 401 });
     }
+
+    const { plan, isAnnual } = await req.json();
 
     if (!process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json({ error: "Stripe is not configured on this server." }, { status: 500 });
