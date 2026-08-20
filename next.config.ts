@@ -1,7 +1,5 @@
 import type { NextConfig } from 'next';
-
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['firebase-admin', 'playwright', 'cheerio', '@upstash/redis', '@upstash/ratelimit', 'openai'],
+  serverExternalPackages: ['firebase-admin'],
 };
-
 export default nextConfig;
