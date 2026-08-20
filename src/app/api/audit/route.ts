@@ -316,14 +316,39 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (playwrightError) {
-        console.error(`[Audit API] Fatal error in Playwright:`, playwrightError);
-        return NextResponse.json({
-          error: "Headless browser failed to launch.",
-          details: "Please ensure BROWSERLESS_API_KEY is configured in Vercel."
-        }, { status: 500 });
+        console.error(`[Audit API] Playwright failed, falling back to cheerio:`, playwrightError);
       } finally {
         if (browser) {
-          await browser.close();
+          await browser.close().catch(() => {});
+        }
+      }
+
+      // Fallback: if playwright failed and no pages were analyzed, use cheerio
+      if (aggregatedData.pagesAnalyzed === 0) {
+        console.log(`[Audit API] Falling back to cheerio scraper for PRO user...`);
+        try {
+          const res = await fetch(targetUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+          });
+          const html = await res.text();
+          const $ = cheerio.load(html);
+
+          aggregatedData.pagesAnalyzed = 1;
+          const title = $('title').text() || 'Unknown Title';
+          aggregatedData.titles.push(title);
+
+          const metaDesc = $('meta[name="description"]').attr('content');
+          if (metaDesc) aggregatedData.metaDescriptions.push(metaDesc);
+
+          aggregatedData.totalH1Count = $('h1').length;
+          aggregatedData.totalImagesWithoutAlt = $('img:not([alt])').length;
+
+          if (domSanitization !== false) {
+            $('script, style, svg, noscript, iframe').remove();
+          }
+          aggregatedData.bodyTextSnippet = `\n--- Page: ${targetUrl} ---\n` + $('body').text().substring(0, 3000).replace(/\s+/g, ' ');
+        } catch (e) {
+          console.log(`[Audit API] Cheerio fallback also failed:`, e);
         }
       }
     }
