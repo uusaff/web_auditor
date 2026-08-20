@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
 
       try {
         // @ts-ignore - playwright is a devDependency, dynamically imported at runtime
-        const { chromium } = await import('playwright');
+        const { chromium } = await import('playw' + 'right');
         if (process.env.BROWSERLESS_API_KEY) {
           browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
         } else {
