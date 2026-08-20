@@ -373,25 +373,39 @@ export async function POST(req: NextRequest) {
     Meta Descriptions found: ${JSON.stringify(aggregatedData.metaDescriptions)}
     Total Crawl Time: ${loadTimeSeconds} seconds
     Total Images missing alt tags across all pages: ${aggregatedData.totalImagesWithoutAlt}
-    Total H1 tags across all pages: ${aggregatedData.totalH1Count}\n    Google Lighthouse Metrics (Hard Data): ${JSON.stringify(aggregatedData.lighthouse || 'Unavailable')}
+    Total H1 tags across all pages: ${aggregatedData.totalH1Count}
+    Google Lighthouse Metrics (Hard Data): ${JSON.stringify(aggregatedData.lighthouse || 'Unavailable')}
     
     Aggregated Content Snippets:
     ${aggregatedData.bodyTextSnippet.substring(0, 3000)}
     
     Based on this data (including the deterministic Google Lighthouse Metrics if available)${screenshotBase64 ? ' AND the provided screenshot (which shows the visual layout)' : ''}, provide:
     1. An overall health score (0-100). Calculate this realistically based on UX, design contrast, load time, missing alts, multi-page consistency, etc.
-    2. 4 specific scores (Performance, Accessibility, Best Practices, SEO) out of 100.
-    3. A list of exactly 4 specific, actionable suggestions for improvement derived directly from the scraped data${screenshotBase64 ? ' and the screenshot above' : ''}. DO NOT give generic advice. Mention specific visual layout issues if you see them.
+    2. 4 specific category scores (Performance, Accessibility, Best Practices, SEO) out of 100.
+    3. A list of 5-10 specific, actionable suggestions for improvement derived directly from the scraped data${screenshotBase64 ? ' and the screenshot above' : ''}. DO NOT give generic advice. Mention specific visual layout issues if you see them.
     
-    You MUST output valid JSON matching this exact schema:
+    You MUST output valid JSON matching this exact schema. No markdown, no code fences, no text before or after:
     {
       "overall_health": number,
-      "performance": number,
-      "accessibility": number,
-      "best_practices": number,
-      "seo": number,
-      "suggestions": string[]
+      "scores": [
+        { "label": "Performance", "score": number, "color": "text-[#ccb999]" or "text-white" },
+        { "label": "Accessibility", "score": number, "color": "text-[#ccb999]" or "text-white" },
+        { "label": "Best Practices", "score": number, "color": "text-[#ccb999]" or "text-white" },
+        { "label": "SEO", "score": number, "color": "text-[#ccb999]" or "text-white" }
+      ],
+      "suggestions": [
+        {
+          "title": "short title",
+          "description": "detailed description of the issue",
+          "severity": "crucial" or "normal" or "optional",
+          "fix_code": "exact code snippet to fix this, or empty string"
+        }
+      ]
     }
+    
+    Color rules: use "text-[#ccb999]" for scores >= 70, use "text-white" for scores below 70.
+    Severity rules: "crucial" for critical issues (broken SEO, major a11y failures), "normal" for important improvements, "optional" for nice-to-haves.
+    fix_code must be real, copy-pasteable HTML/CSS/JS/React code when applicable.
     `;
 
     // Multimodal payload setup
@@ -421,8 +435,7 @@ export async function POST(req: NextRequest) {
     
     let parsedResult;
     try {
-      const sanitizedResult = (resultText || "{}").replace(/```json/g, "").replace(/```/g, "").trim();
-      parsedResult = JSON.parse(sanitizedResult);
+      parsedResult = extractAndValidateJson(resultText || "{}");
       parsedResult.url = targetUrl; 
       parsedResult.screenshotBase64 = screenshotBase64; 
       parsedResult.createdAt = Date.now();
@@ -474,4 +487,49 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function extractAndValidateJson(raw: string): any {
+  // Strategy 1: Direct parse
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.overall_health !== undefined && parsed.scores && parsed.suggestions) return parsed;
+  } catch {}
+
+  // Strategy 2: Strip markdown code fences
+  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (fenceMatch) {
+    try {
+      const parsed = JSON.parse(fenceMatch[1]);
+      if (parsed.overall_health !== undefined && parsed.scores && parsed.suggestions) return parsed;
+    } catch {}
+  }
+
+  // Strategy 3: Find first { to last }
+  const firstBrace = raw.indexOf('{');
+  const lastBrace = raw.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      const parsed = JSON.parse(raw.slice(firstBrace, lastBrace + 1));
+      if (parsed.overall_health !== undefined && parsed.scores && parsed.suggestions) return parsed;
+    } catch {}
+  }
+
+  // Strategy 4: Fix common LLM JSON issues
+  const cleaned = raw
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').replace(/\n?```/g, ''))
+    .replace(/,\s*([\]}])/g, '$1')
+    .replace(/\n/g, ' ')
+    .replace(/\t/g, ' ')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+  const firstBrace2 = cleaned.indexOf('{');
+  const lastBrace2 = cleaned.lastIndexOf('}');
+  if (firstBrace2 !== -1 && lastBrace2 > firstBrace2) {
+    try {
+      const parsed = JSON.parse(cleaned.slice(firstBrace2, lastBrace2 + 1));
+      if (parsed.overall_health !== undefined && parsed.scores && parsed.suggestions) return parsed;
+    } catch {}
+  }
+
+  throw new Error("Invalid JSON from LLM. The AI model returned non-parseable content. Please try again.");
 }
