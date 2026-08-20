@@ -344,6 +344,12 @@ export async function POST(req: NextRequest) {
             await page.close();
           }
         }
+      } catch (playwrightError) {
+        console.error(`[Audit API] Fatal error in Playwright:`, playwrightError);
+        return NextResponse.json({ 
+          error: "Headless browser failed to launch.", 
+          details: "Please ensure BROWSERLESS_API_KEY is configured in Vercel. Vercel Serverless Functions do not support running Playwright natively without an external browserless service." 
+        }, { status: 500 });
       } finally {
         if (browser) {
           await browser.close();
