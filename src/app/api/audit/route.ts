@@ -369,10 +369,20 @@ export async function POST(req: NextRequest) {
     Aggregated Content Snippets:
     ${aggregatedData.bodyTextSnippet.substring(0, 3000)}
     
-    Based on this data (including the deterministic Google Lighthouse Metrics if available) AND the provided screenshot (which shows the visual layout), provide:
+    Based on this data (including the deterministic Google Lighthouse Metrics if available)${screenshotBase64 ? ' AND the provided screenshot (which shows the visual layout)' : ''}, provide:
     1. An overall health score (0-100). Calculate this realistically based on UX, design contrast, load time, missing alts, multi-page consistency, etc.
     2. 4 specific scores (Performance, Accessibility, Best Practices, SEO) out of 100.
-    3. A list of exactly 4 specific, actionable suggestions for improvement derived directly from the scraped data and the screenshot above. DO NOT give generic advice. Mention specific visual layout issues if you see them.
+    3. A list of exactly 4 specific, actionable suggestions for improvement derived directly from the scraped data${screenshotBase64 ? ' and the screenshot above' : ''}. DO NOT give generic advice. Mention specific visual layout issues if you see them.
+    
+    You MUST output valid JSON matching this exact schema:
+    {
+      "overall_health": number,
+      "performance": number,
+      "accessibility": number,
+      "best_practices": number,
+      "seo": number,
+      "suggestions": string[]
+    }
     `;
 
     // Multimodal payload setup
@@ -390,17 +400,9 @@ export async function POST(req: NextRequest) {
     const completion = await openai.chat.completions.create({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an expert technical SEO, UX designer, and performance auditor." },
+        { role: "system", content: "You are an expert technical SEO, UX designer, and performance auditor. You MUST respond ONLY with valid JSON matching the requested schema. Do not include markdown formatting or preamble." },
         { role: "user", content: userMessageContent }
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "AuditReport",
-          strict: true,
-          schema: zodToJsonSchema(AuditReportSchema as any) as any
-        }
-      },
       temperature: 0.7,
       max_tokens: 2000,
     });
@@ -418,6 +420,7 @@ export async function POST(req: NextRequest) {
       parsedResult.isDeepCrawl = !!deepCrawl;
     } catch (e) {
       console.error("Failed to parse OpenRouter JSON output", resultText);
+      console.error("JSON PARSE ERROR WAS:", e);
       throw new Error("Invalid JSON from LLM");
     }
 
