@@ -238,13 +238,16 @@ export async function POST(req: NextRequest) {
       const MAX_PAGES = deepCrawl ? 3 : 1;
 
       try {
-        // @ts-ignore - playwright is a devDependency, dynamically imported at runtime
-        const { chromium } = await import('playw' + 'right');
-        if (process.env.BROWSERLESS_API_KEY) {
-          browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
-        } else {
-          browser = await chromium.launch({ headless: true });
+        // @ts-ignore - playwright-core is dynamically imported at runtime
+        const { chromium } = await import('playwright-core');
+        const browserWsUrl = process.env.BROWSERLESS_WS_URL || (process.env.BROWSERLESS_API_KEY ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}` : '');
+        
+        if (!browserWsUrl) {
+          throw new Error('No BROWSERLESS_WS_URL or BROWSERLESS_API_KEY configured');
         }
+        
+        console.log(`[Audit API] Connecting to remote browser...`);
+        browser = await chromium.connectOverCDP(browserWsUrl, { timeout: 15000 });
 
         const context = await browser.newContext({
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -263,7 +266,7 @@ export async function POST(req: NextRequest) {
           console.log(`[Audit API] Crawling [${aggregatedData.pagesAnalyzed + 1}/${MAX_PAGES}]: ${currentUrl}`);
           const page = await context.newPage();
           try {
-            await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            await page.goto(currentUrl, { waitUntil: 'networkidle', timeout: 25000 });
 
             if (aggregatedData.pagesAnalyzed === 0) {
               console.log(`[Audit API] Capturing screenshot of home page...`);
