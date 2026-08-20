@@ -1,89 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { URL } from 'url';
-import { Redis } from '@upstash/redis';
-import { Ratelimit } from '@upstash/ratelimit';
-import OpenAI from 'openai';
-import { FieldValue } from 'firebase-admin/firestore';
-import { adminDb } from '@/lib/firebase-admin';
-import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import * as cheerio from 'cheerio';
-
-import { getAuth } from 'firebase-admin/auth';
-
-export const maxDuration = 60; // Max execution time for Vercel
-
-// --- RATE LIMITER SETUP ---
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || 'http://localhost',
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || 'dummy',
-});
-const rateLimit = new Ratelimit({
-  redis: redis,
-  limiter: Ratelimit.slidingWindow(5, '1 m'),
-  analytics: true,
-});
-
-import dns from 'dns/promises';
-
-// --- SSRF VALIDATOR ---
-async function validateTargetUrl(rawUrl: string): Promise<{ valid: boolean; reason?: string }> {
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return { valid: false, reason: 'Only HTTP and HTTPS protocols are supported.' };
-    }
-    
-    // Resolve hostname to IP
-    const { address } = await dns.lookup(parsed.hostname);
-    
-    // Check if the resolved IP is local/private
-    // Covers 127.x.x.x, 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, 0.0.0.0, ::1
-    const privateIpRegex = /^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.|0\.0\.0\.0|::1)/;
-    
-    if (privateIpRegex.test(address)) {
-      return { valid: false, reason: 'Access to internal network is prohibited.' };
-    }
-
-    return { valid: true };
-  } catch (error) {
-    return { valid: false, reason: 'Invalid hostname or unable to resolve.' };
-  }
-}
-
-// --- 1. STRICT ZOD SCHEMA ---
-const AuditReportSchema = z.object({
-  url: z.string(),
-  overall_health: z.number().describe("Audit score from 0 to 100"),
-  scores: z.array(z.object({
-    label: z.enum(["Performance", "Accessibility", "Best Practices", "SEO"]),
-    score: z.number().describe("Score from 0 to 100"),
-    color: z.enum(["text-white", "text-[#ccb999]"])
-  })),
-  suggestions: z.array(z.object({
-    title: z.string(),
-    description: z.string().describe("Specific description relating to the audited website"),
-    severity: z.enum(["crucial", "normal", "optional"]),
-    fix_code: z.string().describe("Exact code snippet to fix the issue")
-  }))
-});
-
-// We'll create the OpenAI client dynamically per request if a custom key is provided
-const getDefaultOpenAI = () => new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY || "",
-  defaultHeaders: {
-    "HTTP-Referer": "http://localhost:3000", 
-    "X-Title": "AI Website Auditor",
-  }
-});
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
+    const [
+      { default: OpenAI },
+      cheerioModule,
+      { FieldValue },
+      firebaseAdminModule,
+      firebaseAuthModule,
+      dnsPromises,
+    ] = await Promise.all([
+      import('openai'),
+      import('cheerio'),
+      import('firebase-admin/firestore'),
+      import('@/lib/firebase-admin'),
+      import('firebase-admin/auth'),
+      import('dns/promises'),
+    ]);
+
+    const cheerio = cheerioModule;
+    const { adminDb } = firebaseAdminModule as any;
+    const { getAuth } = firebaseAuthModule;
+
     const authHeader = req.headers.get('authorization');
     let userId = null;
-    
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split('Bearer ')[1];
       try {
@@ -103,9 +46,22 @@ export async function POST(req: NextRequest) {
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
-    
-    // --- RATE LIMIT CHECK ---
+
+    // --- RATE LIMIT CHECK (lazy loaded) ---
     if (process.env.UPSTASH_REDIS_REST_URL) {
+      const [{ Redis }, { Ratelimit }] = await Promise.all([
+        import('@upstash/redis'),
+        import('@upstash/ratelimit'),
+      ]);
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+      });
+      const rateLimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(5, '1 m'),
+        analytics: true,
+      });
       const ip = (req as any).ip ?? req.headers?.get?.('x-forwarded-for') ?? 'anonymous';
       const identifier = userId ? `audit_user_${userId}` : `audit_ip_${ip}`;
       const { success, limit, reset, remaining } = await rateLimit.limit(identifier);
@@ -122,10 +78,17 @@ export async function POST(req: NextRequest) {
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: openRouterKey,
       defaultHeaders: {
-        "HTTP-Referer": "http://localhost:3000", 
+        "HTTP-Referer": "http://localhost:3000",
         "X-Title": "AI Website Auditor",
       }
-    }) : getDefaultOpenAI();
+    }) : new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY || "",
+      defaultHeaders: {
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "AI Website Auditor",
+      }
+    });
 
     let targetUrl = url;
     if (!targetUrl.startsWith('http')) {
@@ -133,33 +96,30 @@ export async function POST(req: NextRequest) {
     }
 
     // --- SSRF CHECK ---
-    const urlCheck = await validateTargetUrl(targetUrl);
+    const urlCheck = await validateTargetUrl(targetUrl, dnsPromises);
     if (!urlCheck.valid) {
       return NextResponse.json({ error: urlCheck.reason }, { status: 400 });
     }
 
     console.log(`[Audit API] Starting ${deepCrawl ? 'DEEP' : 'STANDARD'} audit for: ${targetUrl}`);
-    
+
     // --- DATABASE CACHE CHECK ---
     let docRef: any = null;
     let docId = '';
-    
-    // Only attempt database cache if project ID is defined and adminDb is ready
+
     if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && adminDb) {
-      // Append _deep to the cache key if it's a deep crawl so they don't overwrite each other
       docId = targetUrl.replace(/[^a-zA-Z0-9]/g, '_') + (deepCrawl ? '_deep' : '');
       docRef = adminDb.collection('audits').doc(docId);
-      
+
       try {
         console.log(`[Audit API] Checking cache for ${docId}...`);
-        // Wrap getDoc in a 5-second timeout so it never hangs infinitely
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase timeout")), 5000));
+        const timeoutPromise = new Promise((_: any, reject: any) => setTimeout(() => reject(new Error("Firebase timeout")), 5000));
         const docSnap = await Promise.race([docRef.get(), timeoutPromise]) as any;
-        
+
         if (docSnap && docSnap.exists) {
           const data = docSnap.data();
           const ageInHours = (Date.now() - (data.createdAt || 0)) / (1000 * 60 * 60);
-          
+
           if (ageInHours < 24) {
             console.log(`[Audit API] Cache HIT for ${targetUrl}. Returning saved audit.`);
             return NextResponse.json(data);
@@ -170,12 +130,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-
     // --- USER TIER FETCH ---
     let userTier = 'free';
     let credits = 0;
     let userDocRef: any = null;
-    
+
     if (userId && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && adminDb) {
       try {
         userDocRef = adminDb.collection('users').doc(userId);
@@ -236,17 +195,17 @@ export async function POST(req: NextRequest) {
         });
         const html = await res.text();
         const $ = cheerio.load(html);
-        
+
         aggregatedData.pagesAnalyzed = 1;
         const title = $('title').text() || 'Unknown Title';
         aggregatedData.titles.push(title);
-        
+
         const metaDesc = $('meta[name="description"]').attr('content');
         if (metaDesc) aggregatedData.metaDescriptions.push(metaDesc);
-        
+
         aggregatedData.totalH1Count = $('h1').length;
         aggregatedData.totalImagesWithoutAlt = $('img:not([alt])').length;
-        
+
         if (domSanitization !== false) {
           $('script, style, svg, noscript, iframe').remove();
         }
@@ -259,42 +218,35 @@ export async function POST(req: NextRequest) {
       const urlsToScrape = [targetUrl];
       const scrapedUrls = new Set<string>();
       let browser: any = null;
-      let pageContent = '';
       const MAX_PAGES = deepCrawl ? 3 : 1;
 
       try {
-        const pkgName = 'playwright';
-        const { chromium } = await import(pkgName);
+        const { chromium } = await import('playwright');
         if (process.env.BROWSERLESS_API_KEY) {
           browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
         } else {
           browser = await chromium.launch({ headless: true });
         }
-      
+
         const context = await browser.newContext({
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           viewport: { width: 1920, height: 1080 },
           extraHTTPHeaders: {
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1'
           }
         });
-      
+
         while (urlsToScrape.length > 0 && aggregatedData.pagesAnalyzed < MAX_PAGES) {
           const currentUrl = urlsToScrape.shift()!;
           const urlWithoutHash = currentUrl.split('#')[0];
           if (scrapedUrls.has(urlWithoutHash)) continue;
-          
+
           console.log(`[Audit API] Crawling [${aggregatedData.pagesAnalyzed + 1}/${MAX_PAGES}]: ${currentUrl}`);
           const page = await context.newPage();
           try {
             await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-            
+
             if (aggregatedData.pagesAnalyzed === 0) {
               console.log(`[Audit API] Capturing screenshot of home page...`);
               const isFullPage = scrapingDepth !== 'viewport';
@@ -310,7 +262,7 @@ export async function POST(req: NextRequest) {
 
             const imagesWithoutAlt = await page.evaluate(() => document.querySelectorAll('img:not([alt])').length).catch(() => 0);
             const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length).catch(() => 0);
-            
+
             if (domSanitization !== false) {
               await page.evaluate(() => {
                 document.querySelectorAll('script, style, svg, noscript, iframe').forEach(el => el.remove());
@@ -331,7 +283,7 @@ export async function POST(req: NextRequest) {
                   .map(a => (a as HTMLAnchorElement).href)
                   .filter(href => href.startsWith(window.location.origin) && !href.includes('#'));
               }).catch(() => []);
-              
+
               for (const link of links) {
                 if (!scrapedUrls.has(link) && !urlsToScrape.includes(link)) {
                   urlsToScrape.push(link);
@@ -347,9 +299,9 @@ export async function POST(req: NextRequest) {
         }
       } catch (playwrightError) {
         console.error(`[Audit API] Fatal error in Playwright:`, playwrightError);
-        return NextResponse.json({ 
-          error: "Headless browser failed to launch.", 
-          details: "Please ensure BROWSERLESS_API_KEY is configured in Vercel. Vercel Serverless Functions do not support running Playwright natively without an external browserless service." 
+        return NextResponse.json({
+          error: "Headless browser failed to launch.",
+          details: "Please ensure BROWSERLESS_API_KEY is configured in Vercel."
         }, { status: 500 });
       } finally {
         if (browser) {
@@ -366,7 +318,7 @@ export async function POST(req: NextRequest) {
     const prompt = `
     You are an expert AI Website Auditor. Analyze the following scraped website data and generate an audit report.
     This was a ${deepCrawl ? 'Deep Crawl (multiple pages)' : 'Single Page Crawl'}.
-    
+
     Website Origin: ${targetUrl}
     Pages Analyzed: ${aggregatedData.pagesAnalyzed}
     Titles found: ${JSON.stringify(aggregatedData.titles)}
@@ -375,15 +327,15 @@ export async function POST(req: NextRequest) {
     Total Images missing alt tags across all pages: ${aggregatedData.totalImagesWithoutAlt}
     Total H1 tags across all pages: ${aggregatedData.totalH1Count}
     Google Lighthouse Metrics (Hard Data): ${JSON.stringify(aggregatedData.lighthouse || 'Unavailable')}
-    
+
     Aggregated Content Snippets:
     ${aggregatedData.bodyTextSnippet.substring(0, 3000)}
-    
+
     Based on this data (including the deterministic Google Lighthouse Metrics if available)${screenshotBase64 ? ' AND the provided screenshot (which shows the visual layout)' : ''}, provide:
     1. An overall health score (0-100). Calculate this realistically based on UX, design contrast, load time, missing alts, multi-page consistency, etc.
     2. 4 specific category scores (Performance, Accessibility, Best Practices, SEO) out of 100.
     3. A list of 5-10 specific, actionable suggestions for improvement derived directly from the scraped data${screenshotBase64 ? ' and the screenshot above' : ''}. DO NOT give generic advice. Mention specific visual layout issues if you see them.
-    
+
     You MUST output valid JSON matching this exact schema. No markdown, no code fences, no text before or after:
     {
       "overall_health": number,
@@ -402,20 +354,19 @@ export async function POST(req: NextRequest) {
         }
       ]
     }
-    
+
     Color rules: use "text-[#ccb999]" for scores >= 70, use "text-white" for scores below 70.
     Severity rules: "crucial" for critical issues (broken SEO, major a11y failures), "normal" for important improvements, "optional" for nice-to-haves.
     fix_code must be real, copy-pasteable HTML/CSS/JS/React code when applicable.
     `;
 
-    // Multimodal payload setup
     const userMessageContent: any[] = [{ type: "text", text: prompt }];
     if (screenshotBase64) {
       userMessageContent.push({
         type: "image_url",
         image_url: {
           url: `data:image/jpeg;base64,${screenshotBase64}`,
-          detail: "low" // Keep it low detail to save tokens
+          detail: "low"
         }
       });
     }
@@ -432,12 +383,12 @@ export async function POST(req: NextRequest) {
 
     const resultText = completion.choices[0].message.content;
     console.log(`[Audit API] Analysis complete!`);
-    
+
     let parsedResult;
     try {
       parsedResult = extractAndValidateJson(resultText || "{}");
-      parsedResult.url = targetUrl; 
-      parsedResult.screenshotBase64 = screenshotBase64; 
+      parsedResult.url = targetUrl;
+      parsedResult.screenshotBase64 = screenshotBase64;
       parsedResult.createdAt = Date.now();
       parsedResult.isDeepCrawl = !!deepCrawl;
     } catch (e) {
@@ -450,11 +401,10 @@ export async function POST(req: NextRequest) {
     if (docRef && adminDb) {
       try {
         console.log(`[Audit API] Attempting to save new audit to database...`);
-        const saveTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase write timeout")), 3000));
+        const saveTimeout = new Promise((_: any, reject: any) => setTimeout(() => reject(new Error("Firebase write timeout")), 3000));
         await Promise.race([docRef.set(parsedResult), saveTimeout]);
         console.log(`[Audit API] Saved new audit for ${targetUrl} to database.`);
-        
-        // Also save a lightweight reference to user's history if logged in
+
         if (userId && userDocRef) {
           const historyId = Date.now().toString();
           const userHistoryRef = userDocRef.collection('history').doc(historyId);
@@ -465,8 +415,7 @@ export async function POST(req: NextRequest) {
             reportRef: docId
           };
           await Promise.race([userHistoryRef.set(lightweightDoc), saveTimeout]);
-          
-          // Decrement user credits
+
           await Promise.race([
             userDocRef.update({ credits: FieldValue.increment(-1) }),
             saveTimeout
@@ -489,14 +438,29 @@ export async function POST(req: NextRequest) {
   }
 }
 
+async function validateTargetUrl(rawUrl: string, dnsPromises: typeof import('dns/promises')): Promise<{ valid: boolean; reason?: string }> {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { valid: false, reason: 'Only HTTP and HTTPS protocols are supported.' };
+    }
+    const { address } = await dnsPromises.lookup(parsed.hostname);
+    const privateIpRegex = /^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.|0\.0\.0\.0|::1)/;
+    if (privateIpRegex.test(address)) {
+      return { valid: false, reason: 'Access to internal network is prohibited.' };
+    }
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, reason: 'Invalid hostname or unable to resolve.' };
+  }
+}
+
 function extractAndValidateJson(raw: string): any {
-  // Strategy 1: Direct parse
   try {
     const parsed = JSON.parse(raw);
     if (parsed.overall_health !== undefined && parsed.scores && parsed.suggestions) return parsed;
   } catch {}
 
-  // Strategy 2: Strip markdown code fences
   const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
   if (fenceMatch) {
     try {
@@ -505,7 +469,6 @@ function extractAndValidateJson(raw: string): any {
     } catch {}
   }
 
-  // Strategy 3: Find first { to last }
   const firstBrace = raw.indexOf('{');
   const lastBrace = raw.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -515,7 +478,6 @@ function extractAndValidateJson(raw: string): any {
     } catch {}
   }
 
-  // Strategy 4: Fix common LLM JSON issues
   const cleaned = raw
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').replace(/\n?```/g, ''))
     .replace(/,\s*([\]}])/g, '$1')
