@@ -36,7 +36,7 @@ async function validateTargetUrl(rawUrl: string): Promise<{ valid: boolean; reas
     }
     
     // Resolve hostname to IP
-    const { address } = await dns.promises.lookup(parsed.hostname);
+    const { address } = await dns.lookup(parsed.hostname);
     
     // Check if the resolved IP is local/private
     // Covers 127.x.x.x, 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, 0.0.0.0, ::1
