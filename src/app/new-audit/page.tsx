@@ -15,7 +15,7 @@ export default function NewAuditPage() {
   const isPro = userData?.userTier === 'pro' || userData?.userTier === 'enterprise';
   const outOfCredits = user && credits <= 0;
 
-  const handleAudit = (e: React.FormEvent) => {
+  const handleAudit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url) return;
     if (!user) {
@@ -28,9 +28,16 @@ export default function NewAuditPage() {
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       finalUrl = `https://${url}`;
     }
-    
-    const encodedUrl = encodeURIComponent(finalUrl);
-    router.push(`/audit/${encodedUrl}?deep=${isDeepCrawl}`);
+
+    const onlyProDeep = isPro && isDeepCrawl;
+
+    const res = await fetch('/api/sign-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: finalUrl, deep: onlyProDeep }),
+    });
+    const { token } = await res.json();
+    router.push(`/audit/${token}`);
   };
 
   return (
@@ -45,7 +52,6 @@ export default function NewAuditPage() {
           </p>
         </div>
 
-        {/* Search Input Area */}
         <div className="w-full max-w-[700px] flex flex-col items-center">
           <form onSubmit={handleAudit} className="w-full flex flex-col items-center">
             <label htmlFor="audit-url" className="sr-only">Enter Website URL to Audit</label>

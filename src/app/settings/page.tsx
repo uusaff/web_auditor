@@ -23,6 +23,9 @@ export default function SettingsPage() {
   
   const [auditHistory, setAuditHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [activationCode, setActivationCode] = useState('');
+  const [activating, setActivating] = useState(false);
+  const [activateMsg, setActivateMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -344,6 +347,56 @@ export default function SettingsPage() {
                     </div>
                     <span className="text-gray-600 group-hover:text-white">→</span>
                   </button>
+
+                  {/* Pro Activation Code */}
+                  <div className="p-4 rounded-lg bg-black/30 border border-gray-800">
+                    <h4 className="text-white font-medium mb-2">Activate Pro Access</h4>
+                    <p className="text-sm text-gray-500 mb-3">Enter an activation code to unlock Pro features temporarily.</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={activationCode}
+                        onChange={(e) => { setActivationCode(e.target.value); setActivateMsg(null); }}
+                        placeholder="Enter activation code..."
+                        className="flex-1 bg-black/50 border border-gray-700 focus:border-[#ccb999] text-white rounded-lg px-4 py-2 font-mono text-sm transition-colors outline-none"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!activationCode.trim()) return;
+                          setActivating(true);
+                          setActivateMsg(null);
+                          try {
+                            const idToken = await user.getIdToken();
+                            const res = await fetch('/api/activate', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                              body: JSON.stringify({ code: activationCode }),
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                              setActivateMsg(data.message || 'Pro activated!');
+                              setActivationCode('');
+                            } else {
+                              setActivateMsg(data.error || 'Invalid code');
+                            }
+                          } catch {
+                            setActivateMsg('Failed to activate');
+                          } finally {
+                            setActivating(false);
+                          }
+                        }}
+                        disabled={activating || !activationCode.trim()}
+                        className="px-4 py-2 bg-[#ccb999] hover:bg-[#b8a485] disabled:opacity-50 text-black font-bold text-sm rounded-lg transition-colors"
+                      >
+                        {activating ? '...' : 'Activate'}
+                      </button>
+                    </div>
+                    {activateMsg && (
+                      <p className={`text-xs mt-2 ${activateMsg.includes('activated') || activateMsg.includes('Pro') ? 'text-green-400' : 'text-red-400'}`}>
+                        {activateMsg}
+                      </p>
+                    )}
+                  </div>
                   
                   <button 
                     onClick={async () => {

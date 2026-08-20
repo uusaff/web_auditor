@@ -41,9 +41,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Authentication required to run audits. Please log in." }, { status: 401 });
     }
 
-    const { url, deepCrawl, openRouterKey, scrapingDepth, domSanitization } = await req.json();
+    const { auditToken, url: bodyUrl, deepCrawl: bodyDeep, openRouterKey, scrapingDepth, domSanitization } = await req.json();
 
-    if (!url) {
+    let targetUrl = bodyUrl;
+    let deepCrawl = !!bodyDeep;
+
+    if (auditToken) {
+      const { verifyAuditParams } = await import('@/lib/crypto');
+      const verified = verifyAuditParams(auditToken);
+      if (!verified.valid) {
+        return NextResponse.json({ error: 'Invalid or tampered audit request' }, { status: 403 });
+      }
+      targetUrl = verified.url;
+      deepCrawl = verified.deep;
+    }
+
+    if (!targetUrl) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
@@ -90,7 +103,6 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    let targetUrl = url;
     if (!targetUrl.startsWith('http')) {
       targetUrl = `https://${targetUrl}`;
     }
@@ -151,6 +163,11 @@ export async function POST(req: NextRequest) {
 
     if (credits <= 0) {
       return NextResponse.json({ error: "Out of credits. Please upgrade to Pro for more audits." }, { status: 403 });
+    }
+
+    if (deepCrawl && userTier !== 'pro') {
+      deepCrawl = false;
+      console.log(`[Audit API] Non-pro user attempted deep crawl. Forced to standard mode.`);
     }
 
     let aggregatedData = {

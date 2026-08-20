@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useReactToPrint } from "react-to-print";
 import Image from "next/image";
 import Link from "next/link";
@@ -11,14 +11,27 @@ import { useSettings } from "@/context/SettingsContext";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
+function decodeAuditToken(token: string): { url: string; deep: boolean } {
+  try {
+    const [payloadB64] = token.split('.');
+    if (!payloadB64) return { url: 'apple.com', deep: false };
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+    return { url: payload.url || 'apple.com', deep: !!payload.deep };
+  } catch {
+    try {
+      const decoded = decodeURIComponent(token);
+      return { url: decoded, deep: false };
+    } catch {
+      return { url: 'apple.com', deep: false };
+    }
+  }
+}
+
 export default function AuditDashboard() {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const isDeepCrawl = searchParams?.get('deep') === 'true';
-  const rawUrl = params?.url as string;
-  const decodedUrl = rawUrl && rawUrl !== 'undefined' ? decodeURIComponent(rawUrl) : "apple.com";
+  const rawToken = params?.url as string;
+  const { url: decodedUrl, deep: isDeepCrawl } = decodeAuditToken(rawToken || '');
   
-  // Clean up URL for display (remove https:// or http://)
   const displayUrl = decodedUrl.replace(/^https?:\/\//, '');
   
   const [data, setData] = useState<any>(null);
@@ -49,6 +62,7 @@ export default function AuditDashboard() {
             ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
           },
           body: JSON.stringify({ 
+            auditToken: rawToken,
             url: decodedUrl, 
             deepCrawl: isDeepCrawl,
             openRouterKey,
