@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chromium, Browser } from 'playwright';
+
 import { URL } from 'url';
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
@@ -256,12 +256,14 @@ export async function POST(req: NextRequest) {
       }
     } else {
       console.log(`[Audit API] PRO TIER - Launching headless browser...`);
-      let browser: Browser | null = null;
       const urlsToScrape = [targetUrl];
       const scrapedUrls = new Set<string>();
+      let browser: any = null;
+      let pageContent = '';
       const MAX_PAGES = deepCrawl ? 3 : 1;
 
       try {
+        const { chromium } = await import('playwright');
         if (process.env.BROWSERLESS_API_KEY) {
           browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
         } else {
