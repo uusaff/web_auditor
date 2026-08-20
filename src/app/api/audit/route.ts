@@ -263,7 +263,8 @@ export async function POST(req: NextRequest) {
       const MAX_PAGES = deepCrawl ? 3 : 1;
 
       try {
-        const { chromium } = await import('playwright');
+        const pkgName = 'playwright';
+        const { chromium } = await import(pkgName);
         if (process.env.BROWSERLESS_API_KEY) {
           browser = await chromium.connectOverCDP(`wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`);
         } else {
